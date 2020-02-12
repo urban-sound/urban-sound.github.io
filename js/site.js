@@ -163,15 +163,14 @@ if (window.UrbanSound == null) {
             minInterval: 5,
             maxInterval: 20,
             start: function () {
-                this.effects = [new SpeedRater(), new Reverser(), new Rater()];
+                this.effects = new circularQueue([new SpeedRater(), new Reverser(), new Rater(), new Phaser()]);
                 var workHandler = this.work.bind(this);
                 setInterval(workHandler, this.workInterval * 1000)
                 var wipeHandler = this.wipeout.bind(this);
                 setInterval(wipeHandler, this.wipeOutInterval * 1000)
             },
             work: function () {
-                var isAllEffectsWorking = this.effects.every(e => e.isWorking());
-                if (!isAllEffectsWorking && this.timer == null) {
+                if (this.timer == null) {
                     // schedule next effect
                     var interval = random.getInt(this.minInterval, this.maxInterval);
                     var handler = this.startEffect.bind(this);
@@ -181,14 +180,9 @@ if (window.UrbanSound == null) {
             },
             startEffect: function () {
                 this.timer = null;
-                var notWorking = this.effects.filter(e => !e.isWorking());
-                if (notWorking.length > 0) {
-                    var index = random.getInt(0, notWorking.length - 1);
-                    console.log(`running scheduled effect ${index}`)
-                    notWorking[index].apply();
-                } else {
-                    console.log('all effects working')
-                }
+                var effect = this.effects.get();
+                console.log(`running scheduled effect ${effect.name}`);                
+                effect.apply();
             },
             wipeout: function () {
                 // cleanup effects every 5 mins
@@ -229,16 +223,40 @@ if (window.UrbanSound == null) {
 
         }
 
+        function circularQueue(data) {
+
+            function get() {
+                if (data.length > 0) {
+                    var item = data.splice(0, 1)[0];
+                    data.push(item);
+                    // console.log(data.map(e => e.name))
+                    return item;
+                }
+                return null;
+            }
+
+            function length() {
+                return data.length;
+            }
+
+            var instance = {
+                get: get,
+                length: length
+            };
+            return instance;
+
+        }
+
         //#endregion
 
         //#region effects
 
         function baseEffect() { };
         baseEffect.prototype.name = null;
-        baseEffect.prototype.sourceNodes = null;
+        baseEffect.prototype.nodes = null;
         baseEffect.prototype.duration = 0; // effect duration seconds
         baseEffect.prototype.isWorking = function () {
-            return this.sourceNodes != null;
+            return this.nodes != null;
         };
         baseEffect.prototype.onAudioReady = function (audioBuffer) {
             console.log('baseEffect onAudioReady')
@@ -247,20 +265,19 @@ if (window.UrbanSound == null) {
             if (this.isWorking()) return; // already working            
             var blob = recordController.blobs.dequeue();
             if (blob != null) {
-                this.sourceNodes = [];
+                this.nodes = [];
                 getAudioBufferFromBlob(blob, this.onAudioReady.bind(this));
             }
         };
         baseEffect.prototype.stop = function () {
-            if (this.sourceNodes != null) {
-                for (var i = 0; i < this.sourceNodes.length; ++i) {
-                    if (this.sourceNodes[i] != null) {
-                        this.sourceNodes[i].stop();
-                        this.sourceNodes[i].disconnect();
-                        this.sourceNodes[i] = null;
+            if (this.nodes != null) {
+                for (var i = 0; i < this.nodes.length; ++i) {
+                    if (this.nodes[i] != null) {
+                        this.nodes[i].disconnect();
+                        this.nodes[i] = null;
                     }
                 }
-                this.sourceNodes = null;
+                this.nodes = null;
             }
         };
         baseEffect.prototype.onStop = function () {
@@ -276,7 +293,7 @@ if (window.UrbanSound == null) {
         Reverser.prototype = new baseEffect();
         Reverser.prototype.name = "reverser";
         Reverser.prototype.onAudioReady = function (audioBuffer) {
-            this.duration = random.get(audioBuffer.duration / 2, audioBuffer.duration * 5);
+            this.duration = random.get(audioBuffer.duration * 5, audioBuffer.duration * 20);
             console.log(`starting ${this.name} effect for ${this.duration} s`);
             var sourceNode = audioContext.createBufferSource();
             for (var i = 0; i < settings.channels; ++i) {
@@ -287,7 +304,7 @@ if (window.UrbanSound == null) {
             sourceNode.loop = true;
             sourceNode.connect(gainNode);
             sourceNode.start();
-            this.sourceNodes.push(sourceNode);
+            this.nodes.push(sourceNode);
             this.scheduleStop();
         };
 
@@ -295,7 +312,7 @@ if (window.UrbanSound == null) {
         Rater.prototype = new baseEffect();
         Rater.prototype.name = "rater";
         Rater.prototype.onAudioReady = function (audioBuffer) {
-            this.rate = random.get(0.5, 10);
+            this.rate = random.get(3, 10);
             this.duration = (this.rate > 1 ? audioBuffer.duration * (this.rate) : audioBuffer.duration / this.rate);
             console.log(`starting ${this.name} effect for ${this.duration} s, rate: ${this.rate}, audio duration: ${audioBuffer.duration}`);
             var sourceNode = audioContext.createBufferSource();
@@ -304,7 +321,7 @@ if (window.UrbanSound == null) {
             sourceNode.playbackRate.linearRampToValueAtTime(this.rate, audioContext.currentTime + this.duration);
             sourceNode.connect(gainNode);
             sourceNode.start();
-            this.sourceNodes.push(sourceNode);
+            this.nodes.push(sourceNode);
             this.scheduleStop();
         };
 
@@ -313,7 +330,7 @@ if (window.UrbanSound == null) {
         SpeedRater.prototype.name = "speed rater";
         SpeedRater.prototype.onAudioReady = function (audioBuffer) {
             this.rate = random.getInt(5, 25);
-            var frames = random.getInt(10, 20)
+            var frames = random.getInt(20, 50)
             this.duration = audioBuffer.duration / this.rate * frames;
             console.log(`starting ${this.name} effect for ${this.duration} s, rate: ${this.rate}, audio duration: ${audioBuffer.duration}`);
             var sourceNode = audioContext.createBufferSource();
@@ -322,7 +339,40 @@ if (window.UrbanSound == null) {
             sourceNode.playbackRate.value = this.rate;
             sourceNode.connect(gainNode);
             sourceNode.start();
-            this.sourceNodes.push(sourceNode);
+            this.nodes.push(sourceNode);
+            this.scheduleStop();
+        };
+
+        function Phaser() { }
+        Phaser.prototype = new baseEffect();
+        Phaser.prototype.name = "phaser";
+        Phaser.prototype.onAudioReady = function (audioBuffer) {
+            var start = random.get(0, audioBuffer.duration - 1);
+            var end = random.get(start, audioBuffer.duration);
+            var rates = [1, 1.002];
+            var pans = [-1, 1];
+            this.duration = random.getInt(29, 71);
+            console.log(`starting ${this.name} effect for ${this.duration} s, audio duration: ${audioBuffer.duration}`);
+            
+            for (var i = 0; i < rates.length; ++i) {
+                var sourceNode = audioContext.createBufferSource();
+                sourceNode.buffer = audioBuffer;
+                sourceNode.loop = true;
+                sourceNode.loopStart = start;
+                sourceNode.loopEnd = end;
+                sourceNode.playbackRate.value = rates[i];
+
+                let pannerNode = audioContext.createStereoPanner();
+                pannerNode.pan.value = pans[i];
+
+                sourceNode.connect(pannerNode);
+                pannerNode.connect(gainNode);
+                sourceNode.start(0, start);
+
+                this.nodes.push(sourceNode);
+                this.nodes.push(pannerNode);
+            }           
+            
             this.scheduleStop();
         };
 
