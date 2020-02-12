@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <title>Городская среда - звук</title>
+    <meta charset="utf-8">
+    <meta name="description" content="Звук для выставки «Городская Среда», г. Псков, 2020">
+    <meta name="author" content="Алексей Жихаревич">
+    <meta name="robots" content="index, follow" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <link rel="shortcut icon" href="img/favicon.ico" />
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="css/site.css">
+
+    <script src="js/jquery-3.4.1.slim.min.js"></script>
+    <script src="js/bootstrap.min.js"></script>
+    <script src="js/site.js"></script>
+
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-md">
+        <a class="navbar-brand" href=".">
+            <img src="img/logo32x32.png" alt="Городская среда - звук">
+        </a>
+    </nav>
+    <div class="container">
+        <div class="row">
+            <div class="col content d-flex flex-column">
+                <div class="section justify-content-start">
+                    <div class="description">
+                        <h1 class="text-uppercase">Городская среда</h1>
+                        <h2 class="text-uppercase">Звук</h2>
+                        <p class="required">подключите наушники <br> и микрофон</p>
+                    </div>
+                </div>
+                <div class="section justify-content-center py-5">
+                    <button type="button" class="btn btn-circle">начать</button>
+                </div>
+                <div class="section footer justify-content-end">
+                    <span id="log"></span>
+                    <p>
+                        © Алексей Жихаревич 2020
+                    </p>
+                </div>
+            </div>
+
+
+        </div>
+    </div>
+</body>
+<script>
+
+    function onError(err) {
+        alert(err);
+        $('.required').addClass('bouncing');
+    }
+
+    $(document).ready(function () {
+        var height = $(window).height() - $('nav').outerHeight();
+        $('.content').height(Math.max(height, 600));
+
+        var mediaController = new UrbanSound.MediaController({
+            controls: {
+                button: 'button'
+            },
+            errorHandler: onError
+        });
+        
+    });
+
+</script>
+
+</html>

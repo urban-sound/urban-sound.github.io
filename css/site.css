@@ -1,0 +1,84 @@
+body {
+    margin: 0;
+    background: #ecf1f1;
+}
+
+.navbar {
+    background: #23472B;
+    color: #ecf1f1;
+}
+
+.nav-link, .navbar-brand {
+    cursor: pointer;
+}
+
+.content {
+    background-image: url('/img/urban_back.png');
+    background-size: contain;
+    background-position: center top;
+    position: relative;
+    background-repeat: repeat-y;
+}
+
+.section {
+    text-align: center;
+}
+
+.description {
+    padding-top: 50px;
+}
+
+.description h1, .description h2 {
+    color: #ED4E52;
+}
+
+p {
+    color: #ED4E52;
+    font-size: 1rem;
+    line-height: 1.5;
+    padding-top: 20px;;
+}
+
+@keyframes bouncing {
+    from, 20%, 53%, 80%, to {
+        animation-timing-function: cubic-bezier(0.215, 0.610, 0.355, 1.000);
+        transform: translate3d(0, 0, 0);
+    }
+    40%, 43% {
+        animation-timing-function: cubic-bezier(0.755, 0.050, 0.855, 0.060);
+        transform: translate3d(0, -30px, 0);
+    }
+    70% {
+        animation-timing-function: cubic-bezier(0.755, 0.050, 0.855, 0.060);
+        transform: translate3d(0, -15px, 0);
+    }
+    90% {
+        transform: translate3d(0, -4px, 0);
+    }
+}
+
+.bouncing {
+    animation-duration: 2s;
+    animation-name: bouncing;
+    animation-iteration-count: infinite;
+    font-weight: bold;
+}
+
+.btn-circle {
+    width: 150px;
+    height: 150px;
+    border-radius: 75px;
+    font-size: 1rem;
+    text-align: center;
+    color: #fff;
+    background-color: #ED4E52;
+    border-color: #ED4E52;
+}
+
+.btn-circle:hover {
+    color:#fff;
+}
+
+.footer {
+    padding-bottom: 10px;
+}
