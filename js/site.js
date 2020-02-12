@@ -1,3 +1,7 @@
+// all of this is bit old-fashion
+// but looks like mobile browsers
+// can't understand some new JS features
+
 if (window.UrbanSound == null) {
     window.UrbanSound = {};
 }
@@ -155,16 +159,19 @@ if (window.UrbanSound == null) {
         var effectController = {
             effects: [],
             workInterval: 1,
+            wipeOutInterval: 300,
             minInterval: 5,
             maxInterval: 20,
             start: function () {
-                this.effects = [reverser, rater];
-                var handler = this.work.bind(this);
-                setInterval(handler, this.workInterval * 1000)
+                this.effects = [new SpeedRater(), new Reverser(), new Rater()];
+                var workHandler = this.work.bind(this);
+                setInterval(workHandler, this.workInterval * 1000)
+                var wipeHandler = this.wipeout.bind(this);
+                setInterval(wipeHandler, this.wipeOutInterval * 1000)
             },
             work: function () {
                 var isAllEffectsWorking = this.effects.every(e => e.isWorking());
-                if (!isAllEffectsWorking) {
+                if (!isAllEffectsWorking && this.timer == null) {
                     // schedule next effect
                     var interval = random.getInt(this.minInterval, this.maxInterval);
                     var handler = this.startEffect.bind(this);
@@ -173,11 +180,21 @@ if (window.UrbanSound == null) {
                 }
             },
             startEffect: function () {
-                console.log('running scheduled effect')
+                this.timer = null;
                 var notWorking = this.effects.filter(e => !e.isWorking());
                 if (notWorking.length > 0) {
                     var index = random.getInt(0, notWorking.length - 1);
+                    console.log(`running scheduled effect ${index}`)
                     notWorking[index].apply();
+                } else {
+                    console.log('all effects working')
+                }
+            },
+            wipeout: function () {
+                // cleanup effects every 5 mins
+                console.log('wipe out all')
+                for (var i = 0; i < this.effects.length; ++i) {
+                    this.effects[i].stop();
                 }
             }
         };
@@ -216,73 +233,97 @@ if (window.UrbanSound == null) {
 
         //#region effects
 
-        var reverser = {
-            sourceNode: null,
-            duration: 0,
-            apply: function () {
-                if (this.isWorking()) return; // already working
-                var blob = recordController.blobs.dequeue();
-                if (blob != null) {
-                    getAudioBufferFromBlob(blob, this.onAudioReady.bind(this));
-                }
-            },
-            onAudioReady: function (audioBuffer) {
-                this.duration = random.get(audioBuffer.duration / 2, audioBuffer.duration * 2);
-                console.log(`starting reverser effect for ${this.duration} ms`);
-                this.sourceNode = audioContext.createBufferSource();
-                for (var i = 0; i < settings.channels; ++i) {
-                    var data = audioBuffer.getChannelData(i);
-                    data.reverse();
-                }
-                this.sourceNode.buffer = audioBuffer;
-                this.sourceNode.loop = true;
-                this.sourceNode.connect(gainNode);
-                this.sourceNode.start();
-                var handler = this.onStop.bind(this);
-                setTimeout(handler, this.duration * 1000);
-            },
-            onStop: function () {
-                console.log(`finished reverser effect after ${this.duration} ms`);
-                this.sourceNode.disconnect();
-                this.sourceNode = null;
-            },
-            isWorking: function () {
-                return this.sourceNode != null;
+        function baseEffect() { };
+        baseEffect.prototype.name = null;
+        baseEffect.prototype.sourceNodes = null;
+        baseEffect.prototype.duration = 0; // effect duration seconds
+        baseEffect.prototype.isWorking = function () {
+            return this.sourceNodes != null;
+        };
+        baseEffect.prototype.onAudioReady = function (audioBuffer) {
+            console.log('baseEffect onAudioReady')
+        };
+        baseEffect.prototype.apply = function () {
+            if (this.isWorking()) return; // already working            
+            var blob = recordController.blobs.dequeue();
+            if (blob != null) {
+                this.sourceNodes = [];
+                getAudioBufferFromBlob(blob, this.onAudioReady.bind(this));
             }
         };
-
-        var rater = {
-            sourceNode: null,
-            duration: 0,
-            rate: 1,
-            apply: function () {
-                if (this.isWorking()) return; // already working
-                var blob = recordController.blobs.dequeue();
-                if (blob != null) {
-                    getAudioBufferFromBlob(blob, this.onAudioReady.bind(this));
+        baseEffect.prototype.stop = function () {
+            if (this.sourceNodes != null) {
+                for (var i = 0; i < this.sourceNodes.length; ++i) {
+                    if (this.sourceNodes[i] != null) {
+                        this.sourceNodes[i].stop();
+                        this.sourceNodes[i].disconnect();
+                        this.sourceNodes[i] = null;
+                    }
                 }
-            },
-            onAudioReady: function (audioBuffer) {
-                this.rate = random.get(0.5, 10);
-                this.duration = (this.rate > 1 ? audioBuffer.duration * (this.rate / 2) : audioBuffer.duration / this.rate) * 1000;
-                console.log(`starting rater effect for ${this.duration} ms, rate: ${this.rate}, audio duration: ${audioBuffer.duration}`);
-                this.sourceNode = audioContext.createBufferSource();
-                this.sourceNode.buffer = audioBuffer;
-                this.sourceNode.loop = true;
-                this.sourceNode.playbackRate.linearRampToValueAtTime(this.rate, audioContext.currentTime + this.duration);
-                this.sourceNode.connect(gainNode);
-                this.sourceNode.start();
-                var handler = this.onStop.bind(this);
-                setTimeout(handler, this.duration * 1000);
-            },
-            onStop: function () {
-                console.log(`finished rater effect after ${this.duration} ms, rate: ${this.rate}`);
-                this.sourceNode.disconnect();
-                this.sourceNode = null;
-            },
-            isWorking: function () {
-                return this.sourceNode != null;
+                this.sourceNodes = null;
             }
+        };
+        baseEffect.prototype.onStop = function () {
+            console.log(`finished ${this.name} effect after ${this.duration} s`);
+            this.stop();
+        };
+        baseEffect.prototype.scheduleStop = function () {
+            var handler = this.onStop.bind(this);
+            setTimeout(handler, this.duration * 1000);
+        }
+
+        function Reverser() { }
+        Reverser.prototype = new baseEffect();
+        Reverser.prototype.name = "reverser";
+        Reverser.prototype.onAudioReady = function (audioBuffer) {
+            this.duration = random.get(audioBuffer.duration / 2, audioBuffer.duration * 5);
+            console.log(`starting ${this.name} effect for ${this.duration} s`);
+            var sourceNode = audioContext.createBufferSource();
+            for (var i = 0; i < settings.channels; ++i) {
+                var data = audioBuffer.getChannelData(i);
+                data.reverse();
+            }
+            sourceNode.buffer = audioBuffer;
+            sourceNode.loop = true;
+            sourceNode.connect(gainNode);
+            sourceNode.start();
+            this.sourceNodes.push(sourceNode);
+            this.scheduleStop();
+        };
+
+        function Rater() { }
+        Rater.prototype = new baseEffect();
+        Rater.prototype.name = "rater";
+        Rater.prototype.onAudioReady = function (audioBuffer) {
+            this.rate = random.get(0.5, 10);
+            this.duration = (this.rate > 1 ? audioBuffer.duration * (this.rate) : audioBuffer.duration / this.rate);
+            console.log(`starting ${this.name} effect for ${this.duration} s, rate: ${this.rate}, audio duration: ${audioBuffer.duration}`);
+            var sourceNode = audioContext.createBufferSource();
+            sourceNode.buffer = audioBuffer;
+            sourceNode.loop = true;
+            sourceNode.playbackRate.linearRampToValueAtTime(this.rate, audioContext.currentTime + this.duration);
+            sourceNode.connect(gainNode);
+            sourceNode.start();
+            this.sourceNodes.push(sourceNode);
+            this.scheduleStop();
+        };
+
+        function SpeedRater() { }
+        SpeedRater.prototype = new baseEffect();
+        SpeedRater.prototype.name = "speed rater";
+        SpeedRater.prototype.onAudioReady = function (audioBuffer) {
+            this.rate = random.getInt(5, 25);
+            var frames = random.getInt(10, 20)
+            this.duration = audioBuffer.duration / this.rate * frames;
+            console.log(`starting ${this.name} effect for ${this.duration} s, rate: ${this.rate}, audio duration: ${audioBuffer.duration}`);
+            var sourceNode = audioContext.createBufferSource();
+            sourceNode.buffer = audioBuffer;
+            sourceNode.loop = true;
+            sourceNode.playbackRate.value = this.rate;
+            sourceNode.connect(gainNode);
+            sourceNode.start();
+            this.sourceNodes.push(sourceNode);
+            this.scheduleStop();
         };
 
         //#endregion
