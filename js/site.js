@@ -100,7 +100,7 @@ if (window.UrbanSound == null) {
             recordLength: 0,
             startTime: null,
             stopTime: null,
-            blobs: new fixedQueue(5),
+            blobs: new fixedQueue(13),
             start: function () {
                 var handler = this.work.bind(this);
                 setInterval(handler, this.workInterval * 1000)
@@ -163,7 +163,7 @@ if (window.UrbanSound == null) {
             minInterval: 5,
             maxInterval: 20,
             start: function () {
-                this.effects = new circularQueue([new SpeedRater(), new Reverser(), new Rater(), new Phaser()]);
+                this.effects = new circularQueue([new SpeedRater(), new SpeedRater(), new Reverser(), new Phaser(), new Rater(), new SpeedRater(), new Phaser(), new Reverser()]);
                 var workHandler = this.work.bind(this);
                 setInterval(workHandler, this.workInterval * 1000)
                 var wipeHandler = this.wipeout.bind(this);
@@ -292,9 +292,11 @@ if (window.UrbanSound == null) {
         function Reverser() { }
         Reverser.prototype = new baseEffect();
         Reverser.prototype.name = "reverser";
+        Reverser.prototype.rate = 1;
         Reverser.prototype.onAudioReady = function (audioBuffer) {
+            this.rate = random.get(1, 3);
             this.duration = random.get(audioBuffer.duration * 5, audioBuffer.duration * 20);
-            console.log(`starting ${this.name} effect for ${this.duration} s`);
+            console.log(`starting ${this.name} effect for ${this.duration} s, rate: ${this.rate}, audio duration: ${audioBuffer.duration}`);
             var sourceNode = audioContext.createBufferSource();
             for (var i = 0; i < settings.channels; ++i) {
                 var data = audioBuffer.getChannelData(i);
@@ -302,6 +304,7 @@ if (window.UrbanSound == null) {
             }
             sourceNode.buffer = audioBuffer;
             sourceNode.loop = true;
+            sourceNode.playbackRate.value = this.rate;
             sourceNode.connect(gainNode);
             sourceNode.start();
             this.nodes.push(sourceNode);
@@ -311,6 +314,7 @@ if (window.UrbanSound == null) {
         function Rater() { }
         Rater.prototype = new baseEffect();
         Rater.prototype.name = "rater";
+        Rater.prototype.rate = 1;
         Rater.prototype.onAudioReady = function (audioBuffer) {
             this.rate = random.get(3, 10);
             this.duration = (this.rate > 1 ? audioBuffer.duration * (this.rate) : audioBuffer.duration / this.rate);
@@ -328,6 +332,7 @@ if (window.UrbanSound == null) {
         function SpeedRater() { }
         SpeedRater.prototype = new baseEffect();
         SpeedRater.prototype.name = "speed rater";
+        SpeedRater.prototype.rate = 1;
         SpeedRater.prototype.onAudioReady = function (audioBuffer) {
             this.rate = random.getInt(5, 25);
             var frames = random.getInt(20, 50)
@@ -349,7 +354,7 @@ if (window.UrbanSound == null) {
         Phaser.prototype.onAudioReady = function (audioBuffer) {
             var start = random.get(0, audioBuffer.duration - 1);
             var end = random.get(start, audioBuffer.duration);
-            var rates = [1, 1.002];
+            var rates = [1, random.get(1, 2)];
             var pans = [-1, 1];
             this.duration = random.getInt(29, 71);
             console.log(`starting ${this.name} effect for ${this.duration} s, audio duration: ${audioBuffer.duration}`);
